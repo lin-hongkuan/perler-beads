@@ -61,6 +61,14 @@ export default function FocusMode() {
   // 从localStorage或URL参数获取像素数据
   const [mappedPixelData, setMappedPixelData] = useState<MappedPixel[][] | null>(null);
   const [gridDimensions, setGridDimensions] = useState<{ N: number; M: number } | null>(null);
+  const getHomePath = useCallback(() => {
+    if (typeof window === 'undefined') {
+      return '/';
+    }
+
+    const homePath = window.location.pathname.replace(/\/focus\/?$/, '/');
+    return homePath || '/';
+  }, []);
 
   // 专心模式状态
   const [focusState, setFocusState] = useState<FocusModeState>({
@@ -166,13 +174,13 @@ export default function FocusMode() {
       } catch (error) {
         console.error('Failed to load focus mode data:', error);
         // 重定向到主页面
-        window.location.href = '/';
+        window.location.href = getHomePath();
       }
     } else {
       // 没有数据，重定向到主页面
-      window.location.href = '/';
+      window.location.href = getHomePath();
     }
-  }, []);
+  }, [getHomePath]);
 
   // 计算推荐的下一个区域
   const calculateRecommendedRegion = useCallback(() => {
