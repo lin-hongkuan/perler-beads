@@ -17,6 +17,7 @@ import {
 
 // 导入新的类型和组件
 import { GridDownloadOptions } from '../types/downloadTypes';
+import { ProjectDocument, SavedPalettePreset } from '../types/project';
 import DownloadSettingsModal, { gridLineColorOptions } from '../components/DownloadSettingsModal';
 import { downloadImage, importCsvData } from '../utils/imageDownloader';
 
@@ -92,6 +93,19 @@ import MagnifierSelectionOverlay from '../components/MagnifierSelectionOverlay';
 import { loadPaletteSelections, savePaletteSelections, presetToSelections, PaletteSelections } from '../utils/localStorageUtils';
 import { TRANSPARENT_KEY, transparentColorData } from '../utils/pixelEditingUtils';
 import FocusModePreDownloadModal from '../components/FocusModePreDownloadModal';
+import EditorBottomSheet from '../components/mobile/EditorBottomSheet';
+import MobileEditorToolbar, { MobileSheetKey } from '../components/mobile/MobileEditorToolbar';
+import ToolDrawerSheet from '../components/mobile/ToolDrawerSheet';
+import PaletteSheet from '../components/mobile/PaletteSheet';
+import HistorySheet from '../components/mobile/HistorySheet';
+import ProjectLibrarySheet from '../components/mobile/ProjectLibrarySheet';
+import { useEditorHistory } from '../hooks/useEditorHistory';
+import { useProjectLibrary } from '../hooks/useProjectLibrary';
+import { useProjectPersistence } from '../hooks/useProjectPersistence';
+import { estimateDifficulty } from '../utils/difficultyEstimator';
+import { createProjectDocument, createProjectThumbnail } from '../utils/projectSerialization';
+import { saveProject } from '../utils/projectStorage';
+import { createPatch } from '../utils/historyUtils';
 
 export default function Home() {
   const [originalImageSrc, setOriginalImageSrc] = useState<string | null>(null);
@@ -175,8 +189,80 @@ export default function Home() {
 
   // 新增：专心拼豆模式进入前下载提醒弹窗
   const [isFocusModePreDownloadModalOpen, setIsFocusModePreDownloadModalOpen] = useState<boolean>(false);
+  const [currentProject, setCurrentProject] = useState<ProjectDocument | null>(null);
+  const [activeMobileSheet, setActiveMobileSheet] = useState<MobileSheetKey | null>(null);
+  const [isCanvasLocked, setIsCanvasLocked] = useState<boolean>(true);
+  const { history, commitHistory, undo, redo, replaceHistory, canUndo, canRedo } = useEditorHistory();
+  const projectLibrary = useProjectLibrary();
+  const difficultyEstimate = useMemo(() => estimateDifficulty(mappedPixelData), [mappedPixelData]);
+  useProjectPersistence(currentProject);
 
   // 放大镜切换处理函数
+  const buildProjectSnapshot = useCallback((overrides?: Partial<Pick<ProjectDocument, 'mappedPixelData' | 'gridDimensions' | 'colorCounts' | 'totalBeadCount' | 'originalImageSrc'>>) => {
+    const nextPixelData = overrides?.mappedPixelData ?? mappedPixelData;
+    const nextDimensions = overrides?.gridDimensions ?? gridDimensions;
+    const nextColorCounts = overrides?.colorCounts ?? colorCounts;
+    const nextTotalBeadCount = overrides?.totalBeadCount ?? totalBeadCount;
+
+    if (!nextPixelData || !nextDimensions || !nextColorCounts) return null;
+
+    return createProjectDocument({
+      existingProject: currentProject,
+      sourceType: originalImageSrc ? 'image' : 'csv',
+      originalImageSrc: overrides?.originalImageSrc ?? originalImageSrc,
+      mappedPixelData: nextPixelData,
+      gridDimensions: nextDimensions,
+      colorCounts: nextColorCounts,
+      totalBeadCount: nextTotalBeadCount,
+      selectedColorSystem,
+      excludedColorKeys: Array.from(excludedColorKeys),
+      customPaletteSelections,
+      history,
+      difficulty: estimateDifficulty(nextPixelData),
+      thumbnailDataUrl: createProjectThumbnail(nextPixelData)
+    });
+  }, [colorCounts, currentProject, customPaletteSelections, excludedColorKeys, gridDimensions, history, mappedPixelData, originalImageSrc, selectedColorSystem, totalBeadCount]);
+
+  const persistProjectSnapshot = useCallback(async (snapshot?: ReturnType<typeof buildProjectSnapshot>) => {
+    const project = snapshot ?? buildProjectSnapshot();
+    if (!project) return null;
+    setCurrentProject(project);
+    await saveProject(project);
+    projectLibrary.refresh().catch(error => console.error('刷新项目库失败:', error));
+    return project;
+  }, [buildProjectSnapshot, projectLibrary]);
+
+  const applyPixelDataChange = useCallback((newPixelData: MappedPixel[][], label: string, actionType: Parameters<typeof commitHistory>[0]['actionType']) => {
+    if (!mappedPixelData) return;
+    const patch = createPatch(mappedPixelData, newPixelData);
+    if (patch.length === 0) return;
+    const nextStats = (() => {
+      const counts: { [hexKey: string]: { count: number; color: string } } = {};
+      let count = 0;
+      newPixelData.flat().forEach(cell => {
+        if (cell && !cell.isExternal && cell.key !== TRANSPARENT_KEY) {
+          const hex = cell.color.toUpperCase();
+          counts[hex] = counts[hex] ?? { count: 0, color: hex };
+          counts[hex].count++;
+          count++;
+        }
+      });
+      return { counts, count };
+    })();
+
+    const entry = commitHistory({ actionType, label, patch, metadata: { affectedCells: patch.length } });
+    const nextHistory = entry ? { past: [...history.past, entry].slice(-200), future: [] } : history;
+    setMappedPixelData(newPixelData);
+    setColorCounts(nextStats.counts);
+    setTotalBeadCount(nextStats.count);
+    const snapshot = buildProjectSnapshot({ mappedPixelData: newPixelData, colorCounts: nextStats.counts, totalBeadCount: nextStats.count });
+    if (snapshot) {
+      snapshot.history = nextHistory;
+      setCurrentProject(snapshot);
+      saveProject(snapshot).then(() => projectLibrary.refresh()).catch(error => console.error('保存编辑历史失败:', error));
+    }
+  }, [buildProjectSnapshot, commitHistory, history, mappedPixelData, projectLibrary]);
+
   const handleToggleMagnifier = () => {
     const newActiveState = !isMagnifierActive;
     setIsMagnifierActive(newActiveState);
@@ -196,54 +282,95 @@ export default function Home() {
     setActiveFloatingTool('magnifier');
   };
 
+  const syncPixelDataWithoutHistory = (nextPixelData: MappedPixel[][]) => {
+    const counts: { [hexKey: string]: { count: number; color: string } } = {};
+    let count = 0;
+    nextPixelData.flat().forEach(cell => {
+      if (cell && !cell.isExternal && cell.key !== TRANSPARENT_KEY) {
+        const hex = cell.color.toUpperCase();
+        counts[hex] = counts[hex] ?? { count: 0, color: hex };
+        counts[hex].count++;
+        count++;
+      }
+    });
+    setMappedPixelData(nextPixelData);
+    setColorCounts(counts);
+    setTotalBeadCount(count);
+    const snapshot = buildProjectSnapshot({ mappedPixelData: nextPixelData, colorCounts: counts, totalBeadCount: count });
+    if (snapshot) {
+      setCurrentProject(snapshot);
+      saveProject(snapshot).catch(error => console.error('同步保存项目失败:', error));
+    }
+  };
+
+  const handleUndo = () => {
+    if (!mappedPixelData) return;
+    const nextPixelData = undo(mappedPixelData);
+    if (nextPixelData) {
+      syncPixelDataWithoutHistory(nextPixelData);
+    }
+  };
+
+  const handleRedo = () => {
+    if (!mappedPixelData) return;
+    const nextPixelData = redo(mappedPixelData);
+    if (nextPixelData) {
+      syncPixelDataWithoutHistory(nextPixelData);
+    }
+  };
+
+  const handleOpenProject = async (projectId: string) => {
+    const project = await projectLibrary.openProject(projectId);
+    if (!project) return;
+    setCurrentProject(project);
+    setOriginalImageSrc(project.originalImageSrc);
+    setMappedPixelData(project.mappedPixelData);
+    setGridDimensions(project.gridDimensions);
+    setColorCounts(project.colorCounts);
+    setTotalBeadCount(project.totalBeadCount);
+    setSelectedColorSystem(project.selectedColorSystem);
+    setExcludedColorKeys(new Set(project.excludedColorKeys));
+    setCustomPaletteSelections(project.customPaletteSelections);
+    replaceHistory(project.history);
+  };
+
+  const handleToggleProjectFavorite = async (projectId: string) => {
+    await projectLibrary.toggleProjectFavorite(projectId);
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    if (window.confirm('确定删除这个项目吗？')) {
+      await projectLibrary.removeProject(projectId);
+    }
+  };
+
+  const handleApplyPalettePreset = (preset: SavedPalettePreset) => {
+    setCustomPaletteSelections(preset.selections);
+    savePaletteSelections(preset.selections);
+  };
+
+  const handleDeletePalettePreset = async (presetId: string) => {
+    await projectLibrary.removePreset(presetId);
+  };
+
+  const handleToggleCanvasLock = () => {
+    setIsCanvasLocked(prev => !prev);
+  };
+
   // 放大镜像素编辑处理函数
   const handleMagnifierPixelEdit = (row: number, col: number, colorData: { key: string; color: string }) => {
     if (!mappedPixelData) return;
-    
-    // 创建新的像素数据
+
     const newMappedPixelData = mappedPixelData.map((rowData, r) =>
       rowData.map((pixel, c) => {
         if (r === row && c === col) {
-          return { 
-            key: colorData.key, 
-            color: colorData.color 
-          } as MappedPixel;
+          return { key: colorData.key, color: colorData.color, isExternal: false } as MappedPixel;
         }
         return pixel;
       })
     );
-    
-    setMappedPixelData(newMappedPixelData);
-    
-    // 更新颜色统计
-    if (colorCounts) {
-      const newColorCounts = { ...colorCounts };
-      
-      // 减少原颜色的计数
-      const oldPixel = mappedPixelData[row][col];
-      if (newColorCounts[oldPixel.key]) {
-        newColorCounts[oldPixel.key].count--;
-        if (newColorCounts[oldPixel.key].count === 0) {
-          delete newColorCounts[oldPixel.key];
-        }
-      }
-      
-      // 增加新颜色的计数
-      if (newColorCounts[colorData.key]) {
-        newColorCounts[colorData.key].count++;
-      } else {
-        newColorCounts[colorData.key] = {
-          count: 1,
-          color: colorData.color
-        };
-      }
-      
-      setColorCounts(newColorCounts);
-      
-      // 更新总计数
-      const newTotal = Object.values(newColorCounts).reduce((sum, item) => sum + item.count, 0);
-      setTotalBeadCount(newTotal);
-    }
+
+    applyPixelDataChange(newMappedPixelData, '放大镜单格上色', 'paint-single');
   };
 
   const originalCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -378,15 +505,14 @@ export default function Home() {
     setIsFocusModePreDownloadModalOpen(true);
   };
 
-  const handleProceedToFocusMode = () => {
-    // 保存数据到localStorage供专心拼豆模式使用
-    localStorage.setItem('focusMode_pixelData', JSON.stringify(mappedPixelData));
-    localStorage.setItem('focusMode_gridDimensions', JSON.stringify(gridDimensions));
-    localStorage.setItem('focusMode_colorCounts', JSON.stringify(colorCounts));
-    localStorage.setItem('focusMode_selectedColorSystem', selectedColorSystem);
-    
-    // 跳转到专心拼豆页面
-    window.location.href = `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/focus`;
+  const handleProceedToFocusMode = async () => {
+    const project = await persistProjectSnapshot();
+    if (!project) {
+      alert('请先生成图纸后再进入专心拼豆模式。');
+      return;
+    }
+
+    window.location.href = `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/focus?project=${project.id}`;
   };
 
   // 添加一个安全的文件输入触发函数
@@ -572,21 +698,39 @@ export default function Home() {
           setColorCounts(colorCountsMap);
           setTotalBeadCount(totalCount);
           setInitialGridColorKeys(new Set(Object.keys(colorCountsMap)));
-          
+
           // 根据mappedPixelData生成合成的originalImageSrc
           const syntheticImageSrc = generateSyntheticImageFromPixelData(mappedPixelData, gridDimensions);
-          
+
           setOriginalImageSrc(syntheticImageSrc);
-          
+
           // 重置状态
           setIsManualColoringMode(false);
           setSelectedColor(null);
           setIsEraseMode(false);
-          
+
           // 设置格子数量为导入的尺寸，避免重新映射时尺寸被修改
           setGranularity(gridDimensions.N);
           setGranularityInput(gridDimensions.N.toString());
-          
+
+          const snapshot = createProjectDocument({
+            sourceType: 'csv',
+            originalImageSrc: syntheticImageSrc,
+            mappedPixelData,
+            gridDimensions,
+            colorCounts: colorCountsMap,
+            totalBeadCount: totalCount,
+            selectedColorSystem,
+            excludedColorKeys: Array.from(excludedColorKeys),
+            customPaletteSelections,
+            history,
+            difficulty: estimateDifficulty(mappedPixelData),
+            thumbnailDataUrl: createProjectThumbnail(mappedPixelData)
+          });
+          setCurrentProject(snapshot);
+          saveProject(snapshot).catch(error => console.error('保存CSV项目失败:', error));
+          projectLibrary.refresh().catch(error => console.error('刷新项目库失败:', error));
+
           alert(`成功导入CSV文件！图纸尺寸：${gridDimensions.N}x${gridDimensions.M}，共使用${Object.keys(colorCountsMap).length}种颜色。`);
         })
         .catch(error => {
@@ -940,6 +1084,23 @@ export default function Home() {
         setColorCounts(counts);
         setTotalBeadCount(totalCount);
         setInitialGridColorKeys(new Set(Object.keys(counts)));
+        const snapshot = createProjectDocument({
+          existingProject: currentProject,
+          sourceType: 'image',
+          originalImageSrc: imageSrc,
+          mappedPixelData: mergedData,
+          gridDimensions: { N, M },
+          colorCounts: counts,
+          totalBeadCount: totalCount,
+          selectedColorSystem,
+          excludedColorKeys: Array.from(excludedColorKeys),
+          customPaletteSelections,
+          history,
+          difficulty: estimateDifficulty(mergedData),
+          thumbnailDataUrl: createProjectThumbnail(mergedData)
+        });
+        setCurrentProject(snapshot);
+        saveProject(snapshot).then(() => projectLibrary.refresh()).catch(error => console.error('保存图片项目失败:', error));
         console.log("Color counts updated based on merged data (after merging):", counts);
         console.log("Total bead count (total beads):", totalCount);
         console.log("Stored initial grid color keys:", Object.keys(counts));
@@ -1270,26 +1431,15 @@ export default function Home() {
       pushIfTarget(row, col + 1);
     }
 
-    setMappedPixelData(newPixelData);
-
+    applyPixelDataChange(newPixelData, '自动去除背景', 'auto-background-remove');
     const newColorCounts: { [hexKey: string]: { count: number; color: string } } = {};
-    let newTotalCount = 0;
     newPixelData.flat().forEach(cell => {
       if (cell && !cell.isExternal && cell.key !== TRANSPARENT_KEY) {
         const cellHex = cell.color.toUpperCase();
-        if (!newColorCounts[cellHex]) {
-          newColorCounts[cellHex] = {
-            count: 0,
-            color: cellHex
-          };
-        }
+        newColorCounts[cellHex] = newColorCounts[cellHex] ?? { count: 0, color: cellHex };
         newColorCounts[cellHex].count++;
-        newTotalCount++;
       }
     });
-
-    setColorCounts(newColorCounts);
-    setTotalBeadCount(newTotalCount);
     setInitialGridColorKeys(new Set(Object.keys(newColorCounts)));
   };
 
@@ -1338,31 +1488,7 @@ export default function Home() {
       );
     }
     
-    // 更新状态
-    setMappedPixelData(newPixelData);
-    
-    // 重新计算颜色统计
-    if (colorCounts) {
-      const newColorCounts: { [hexKey: string]: { count: number; color: string } } = {};
-      let newTotalCount = 0;
-      
-      newPixelData.flat().forEach(cell => {
-        if (cell && !cell.isExternal && cell.key !== TRANSPARENT_KEY) {
-          const cellHex = cell.color.toUpperCase();
-          if (!newColorCounts[cellHex]) {
-            newColorCounts[cellHex] = {
-              count: 0,
-              color: cellHex
-            };
-          }
-          newColorCounts[cellHex].count++;
-          newTotalCount++;
-        }
-      });
-      
-      setColorCounts(newColorCounts);
-      setTotalBeadCount(newTotalCount);
-    }
+    applyPixelDataChange(newPixelData, '区域擦除', 'erase-region');
   };
 
   // ++ Re-introduce the combined interaction handler ++
@@ -1446,45 +1572,9 @@ export default function Home() {
           newCellData = { ...selectedColor, isExternal: false };
         }
 
-        // Only update if state changes
         if (newCellData.key !== previousKey || newCellData.isExternal !== wasExternal) {
           newPixelData[j][i] = newCellData;
-          setMappedPixelData(newPixelData);
-
-          // Update color counts
-          if (colorCounts) {
-            const newColorCounts = { ...colorCounts };
-            let newTotalCount = totalBeadCount;
-
-            // 处理之前颜色的减少（使用hex值）
-            if (!wasExternal && previousKey !== TRANSPARENT_KEY) {
-              const previousCell = mappedPixelData[j][i];
-              const previousHex = previousCell?.color?.toUpperCase();
-              if (previousHex && newColorCounts[previousHex]) {
-                newColorCounts[previousHex].count--;
-                if (newColorCounts[previousHex].count <= 0) {
-                  delete newColorCounts[previousHex];
-              }
-              newTotalCount--;
-              }
-            }
-
-            // 处理新颜色的增加（使用hex值）
-            if (!newCellData.isExternal && newCellData.key !== TRANSPARENT_KEY) {
-              const newHex = newCellData.color.toUpperCase();
-              if (!newColorCounts[newHex]) {
-                newColorCounts[newHex] = {
-                  count: 0,
-                  color: newHex
-                };
-              }
-              newColorCounts[newHex].count++;
-              newTotalCount++;
-            }
-
-            setColorCounts(newColorCounts);
-            setTotalBeadCount(newTotalCount);
-          }
+          applyPixelDataChange(newPixelData, '单格上色', 'paint-single');
         }
         
         // 上色操作后隐藏提示
@@ -1781,32 +1871,7 @@ export default function Home() {
     }
 
     if (replaceCount > 0) {
-      // 更新像素数据
-      setMappedPixelData(newPixelData);
-
-      // 重新计算颜色统计
-      if (colorCounts) {
-        const newColorCounts: { [hexKey: string]: { count: number; color: string } } = {};
-        let newTotalCount = 0;
-
-        newPixelData.flat().forEach(cell => {
-          if (cell && !cell.isExternal && cell.key !== TRANSPARENT_KEY) {
-            const cellHex = cell.color.toUpperCase();
-            if (!newColorCounts[cellHex]) {
-              newColorCounts[cellHex] = {
-                count: 0,
-                color: cellHex
-              };
-            }
-            newColorCounts[cellHex].count++;
-            newTotalCount++;
-          }
-        });
-
-        setColorCounts(newColorCounts);
-        setTotalBeadCount(newTotalCount);
-      }
-
+      applyPixelDataChange(newPixelData, `将 ${sourceColor.key} 替换为 ${targetColor.key}`, 'replace-color');
       console.log(`颜色替换完成：将 ${replaceCount} 个 ${sourceColor.key} 替换为 ${targetColor.key}`);
     }
 
@@ -2178,11 +2243,29 @@ export default function Home() {
                     onInteraction={handleCanvasInteraction}
                     highlightColorKey={highlightColorKey}
                     onHighlightComplete={handleHighlightComplete}
+                    isCanvasLocked={isCanvasLocked}
                   />
                 </div>
               </div>
             </div>
           </div> // This closes the main div started after originalImageSrc check
+        )}
+
+        {originalImageSrc && mappedPixelData && difficultyEstimate && (
+          <div className="w-full md:max-w-2xl mt-4 grid grid-cols-3 gap-2 rounded-2xl border border-blue-100 bg-blue-50 p-3 text-center text-xs text-blue-700 shadow-sm dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-200">
+            <div>
+              <div className="font-semibold">难度</div>
+              <div className="mt-1 text-sm">{difficultyEstimate.level === 'easy' ? '简单' : difficultyEstimate.level === 'medium' ? '中等' : difficultyEstimate.level === 'hard' ? '困难' : '专家'}</div>
+            </div>
+            <div>
+              <div className="font-semibold">预计耗时</div>
+              <div className="mt-1 text-sm">{difficultyEstimate.estimatedMinutes} 分钟</div>
+            </div>
+            <div>
+              <div className="font-semibold">碎片区域</div>
+              <div className="mt-1 text-sm">{difficultyEstimate.factors.totalRegions} 块</div>
+            </div>
+          </div>
         )}
 
         {/* ++ HIDE Color Counts in manual mode ++ */}
@@ -2390,6 +2473,64 @@ export default function Home() {
 
       </main>
 
+      <div className="md:hidden">
+        <MobileEditorToolbar
+          isVisible={Boolean(originalImageSrc)}
+          activeSheet={activeMobileSheet}
+          onOpenSheet={sheet => setActiveMobileSheet(activeMobileSheet === sheet ? null : sheet)}
+          onDownload={() => setIsDownloadSettingsOpen(true)}
+          onFocusMode={handleEnterFocusMode}
+        />
+
+        <EditorBottomSheet title="工具" isOpen={activeMobileSheet === 'tools'} onClose={() => setActiveMobileSheet(null)}>
+          <ToolDrawerSheet
+            isManualColoringMode={isManualColoringMode}
+            isEraseMode={isEraseMode}
+            isCanvasLocked={isCanvasLocked}
+            canUndo={canUndo}
+            canRedo={canRedo}
+            onEnterManualMode={() => { setIsManualColoringMode(true); setActiveMobileSheet(null); }}
+            onExitManualMode={() => { setIsManualColoringMode(false); setSelectedColor(null); setTooltipData(null); setActiveMobileSheet(null); }}
+            onToggleErase={handleEraseToggle}
+            onToggleCanvasLock={handleToggleCanvasLock}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+            onToggleMagnifier={handleToggleMagnifier}
+            isMagnifierActive={isMagnifierActive}
+          />
+        </EditorBottomSheet>
+
+        <EditorBottomSheet title="色板" isOpen={activeMobileSheet === 'palette'} onClose={() => setActiveMobileSheet(null)}>
+          <PaletteSheet
+            colors={currentGridColors}
+            fullPaletteColors={fullPaletteColors}
+            selectedColor={selectedColor}
+            selectedColorSystem={selectedColorSystem}
+            showFullPalette={showFullPalette}
+            onToggleFullPalette={handleToggleFullPalette}
+            onColorSelect={handleColorSelect}
+          />
+        </EditorBottomSheet>
+
+        <EditorBottomSheet title="历史" isOpen={activeMobileSheet === 'history'} onClose={() => setActiveMobileSheet(null)}>
+          <HistorySheet history={history} onUndo={handleUndo} onRedo={handleRedo} />
+        </EditorBottomSheet>
+
+        <EditorBottomSheet title="项目库" isOpen={activeMobileSheet === 'library'} onClose={() => setActiveMobileSheet(null)}>
+          <ProjectLibrarySheet
+            projects={projectLibrary.projects}
+            lastProject={projectLibrary.lastProject}
+            palettePresets={projectLibrary.palettePresets}
+            isLoading={projectLibrary.isLoading}
+            onOpenProject={handleOpenProject}
+            onToggleFavorite={handleToggleProjectFavorite}
+            onDeleteProject={handleDeleteProject}
+            onApplyPalette={handleApplyPalettePreset}
+            onDeletePalette={handleDeletePalettePreset}
+          />
+        </EditorBottomSheet>
+      </div>
+
       {/* 悬浮工具栏 */}
       <FloatingToolbar
         isManualColoringMode={isManualColoringMode}
@@ -2410,6 +2551,10 @@ export default function Home() {
         }}
         onToggleMagnifier={handleToggleMagnifier}
         isMagnifierActive={isMagnifierActive}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
       />
 
       {/* 悬浮调色盘 */}

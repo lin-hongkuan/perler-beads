@@ -9,6 +9,10 @@ interface FloatingToolbarProps {
   onExitManualMode: () => void;
   onToggleMagnifier: () => void;
   isMagnifierActive: boolean;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
 const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
@@ -17,7 +21,11 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   onTogglePalette,
   onExitManualMode,
   onToggleMagnifier,
-  isMagnifierActive
+  isMagnifierActive,
+  canUndo = false,
+  canRedo = false,
+  onUndo,
+  onRedo
 }) => {
   if (!isManualColoringMode) return null;
 
@@ -37,6 +45,30 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
           <path fillRule="evenodd" d="M4 2a2 2 0 00-2 2v11a3 3 0 106 0V4a2 2 0 00-2-2H4zm1 14a1 1 0 100-2 1 1 0 000 2zm5-1.757l4.9-4.9a2 2 0 000-2.828L13.485 5.1a2 2 0 00-2.828 0L10 5.757v8.486zM16 18H9.071l6-6H16a2 2 0 012 2v2a2 2 0 01-2 2z" clipRule="evenodd" />
         </svg>
       </button>
+
+      {/* 撤销按钮 */}
+      {onUndo && (
+        <button
+          onClick={onUndo}
+          disabled={!canUndo}
+          className="w-12 h-12 rounded-full shadow-lg transition-all duration-200 flex items-center justify-center bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600 disabled:opacity-40"
+          title="撤销"
+        >
+          ↶
+        </button>
+      )}
+
+      {/* 重做按钮 */}
+      {onRedo && (
+        <button
+          onClick={onRedo}
+          disabled={!canRedo}
+          className="w-12 h-12 rounded-full shadow-lg transition-all duration-200 flex items-center justify-center bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600 disabled:opacity-40"
+          title="重做"
+        >
+          ↷
+        </button>
+      )}
 
       {/* 放大镜按钮 */}
       <button

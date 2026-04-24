@@ -36,9 +36,10 @@ const FocusCanvas: React.FC<FocusCanvasProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
   const [lastPanPoint, setLastPanPoint] = useState<{ x: number; y: number } | null>(null);
+  const [lastTouchPoint, setLastTouchPoint] = useState<{ x: number; y: number } | null>(null);
   const [lastPinchDistance, setLastPinchDistance] = useState<number | null>(null);
+  const [hasTouchMoved, setHasTouchMoved] = useState(false);
 
   // 计算格子大小
   const cellSize = Math.max(15, Math.min(40, 300 / Math.max(gridDimensions.N, gridDimensions.M)));
@@ -224,39 +225,46 @@ const FocusCanvas: React.FC<FocusCanvasProps> = ({
   // 处理双指缩放（触摸）
   const handleTouchStart = useCallback((event: React.TouchEvent) => {
     if (event.touches.length === 1) {
-      // 单指拖拽开始
-      setIsDragging(true);
-      setLastPanPoint({
+      const point = {
         x: event.touches[0].clientX,
         y: event.touches[0].clientY
-      });
+      };
+      setLastTouchPoint(point);
+      setLastPanPoint(point);
       setLastPinchDistance(null);
+      setHasTouchMoved(false);
     } else if (event.touches.length === 2) {
-      // 双指缩放开始
       event.preventDefault();
-      setIsDragging(false);
+      setLastTouchPoint(null);
       setLastPanPoint(null);
       setLastPinchDistance(getTouchDistance(event.touches));
+      setHasTouchMoved(true);
     }
   }, []);
 
   const handleTouchMove = useCallback((event: React.TouchEvent) => {
     event.preventDefault();
     
-    if (event.touches.length === 1 && isDragging && lastPanPoint) {
-      // 单指拖拽
-      const deltaX = event.touches[0].clientX - lastPanPoint.x;
-      const deltaY = event.touches[0].clientY - lastPanPoint.y;
-      
+    if (event.touches.length === 1 && lastPanPoint) {
+      const currentPoint = {
+        x: event.touches[0].clientX,
+        y: event.touches[0].clientY
+      };
+      const deltaX = currentPoint.x - lastPanPoint.x;
+      const deltaY = currentPoint.y - lastPanPoint.y;
+      const totalDeltaX = lastTouchPoint ? Math.abs(currentPoint.x - lastTouchPoint.x) : 0;
+      const totalDeltaY = lastTouchPoint ? Math.abs(currentPoint.y - lastTouchPoint.y) : 0;
+
+      if (totalDeltaX > 6 || totalDeltaY > 6) {
+        setHasTouchMoved(true);
+      }
+
       onOffsetChange({
         x: canvasOffset.x + deltaX,
         y: canvasOffset.y + deltaY
       });
-      
-      setLastPanPoint({
-        x: event.touches[0].clientX,
-        y: event.touches[0].clientY
-      });
+
+      setLastPanPoint(currentPoint);
     } else if (event.touches.length === 2 && lastPinchDistance !== null) {
       // 双指缩放处理
       const currentDistance = getTouchDistance(event.touches);
@@ -269,58 +277,69 @@ const FocusCanvas: React.FC<FocusCanvasProps> = ({
       // 更新距离记录
       setLastPinchDistance(currentDistance);
     }
-  }, [isDragging, lastPanPoint, canvasOffset, onOffsetChange, lastPinchDistance, canvasScale, onScaleChange]);
+  }, [lastPanPoint, lastTouchPoint, canvasOffset, onOffsetChange, lastPinchDistance, canvasScale, onScaleChange]);
 
   const handleTouchEnd = useCallback((event: React.TouchEvent) => {
     if (event.touches.length === 0) {
-      setIsDragging(false);
+      const shouldClick = !hasTouchMoved;
       setLastPanPoint(null);
+      setLastTouchPoint(null);
       setLastPinchDistance(null);
-      
-      // 如果没有移动太多，视为点击
-      if (!isDragging) {
+      setHasTouchMoved(false);
+
+      if (shouldClick) {
         handleClick(event);
       }
     } else if (event.touches.length === 1) {
-      // 从双指缩放切换到单指拖拽
       setLastPinchDistance(null);
-      setIsDragging(true);
-      setLastPanPoint({
+      const point = {
         x: event.touches[0].clientX,
         y: event.touches[0].clientY
-      });
+      };
+      setLastPanPoint(point);
+      setLastTouchPoint(point);
     }
-  }, [isDragging, handleClick]);
+  }, [hasTouchMoved, handleClick]);
 
   // 鼠标拖拽处理
   const handleMouseDown = useCallback((event: React.MouseEvent) => {
-    setIsDragging(true);
-    setLastPanPoint({
+    const point = {
       x: event.clientX,
       y: event.clientY
-    });
+    };
+    setLastTouchPoint(point);
+    setLastPanPoint(point);
+    setHasTouchMoved(false);
   }, []);
 
   const handleMouseMove = useCallback((event: React.MouseEvent) => {
-    if (isDragging && lastPanPoint) {
-      const deltaX = event.clientX - lastPanPoint.x;
-      const deltaY = event.clientY - lastPanPoint.y;
-      
+    if (lastPanPoint) {
+      const currentPoint = {
+        x: event.clientX,
+        y: event.clientY
+      };
+      const deltaX = currentPoint.x - lastPanPoint.x;
+      const deltaY = currentPoint.y - lastPanPoint.y;
+      const totalDeltaX = lastTouchPoint ? Math.abs(currentPoint.x - lastTouchPoint.x) : 0;
+      const totalDeltaY = lastTouchPoint ? Math.abs(currentPoint.y - lastTouchPoint.y) : 0;
+
+      if (totalDeltaX > 6 || totalDeltaY > 6) {
+        setHasTouchMoved(true);
+      }
+
       onOffsetChange({
         x: canvasOffset.x + deltaX,
         y: canvasOffset.y + deltaY
       });
-      
-      setLastPanPoint({
-        x: event.clientX,
-        y: event.clientY
-      });
+
+      setLastPanPoint(currentPoint);
     }
-  }, [isDragging, lastPanPoint, canvasOffset, onOffsetChange]);
+  }, [lastPanPoint, lastTouchPoint, canvasOffset, onOffsetChange]);
 
   const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
     setLastPanPoint(null);
+    setLastTouchPoint(null);
+    setHasTouchMoved(false);
   }, []);
 
   // 渲染画布

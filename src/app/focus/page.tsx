@@ -2,6 +2,9 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { MappedPixel } from '../../utils/pixelation';
+import { ProjectDocument } from '../../types/project';
+import { loadProject, saveProject } from '../../utils/projectStorage';
+import { estimateDifficulty } from '../../utils/difficultyEstimator';
 import { 
   getAllConnectedRegions, 
   isRegionCompleted, 
@@ -58,6 +61,7 @@ interface FocusModeState {
 }
 
 export default function FocusMode() {
+  const [project, setProject] = useState<ProjectDocument | null>(null);
   // 从localStorage或URL参数获取像素数据
   const [mappedPixelData, setMappedPixelData] = useState<MappedPixel[][] | null>(null);
   const [gridDimensions, setGridDimensions] = useState<{ N: number; M: number } | null>(null);
@@ -103,6 +107,32 @@ export default function FocusMode() {
     completed: number;
   }>>([]);
 
+  // 保存进度回项目
+  useEffect(() => {
+    if (!project) return;
+
+    const updatedProject: ProjectDocument = {
+      ...project,
+      focusProgress: {
+        currentColor: focusState.currentColor,
+        selectedCell: focusState.selectedCell,
+        canvasScale: focusState.canvasScale,
+        canvasOffset: focusState.canvasOffset,
+        completedCells: Array.from(focusState.completedCells),
+        colorProgress: focusState.colorProgress,
+        guidanceMode: focusState.guidanceMode,
+        timer: {
+          startTime: focusState.startTime,
+          totalElapsedTime: focusState.totalElapsedTime,
+          lastResumeTime: focusState.lastResumeTime,
+          isPaused: focusState.isPaused
+        }
+      }
+    };
+
+    saveProject(updatedProject).catch(error => console.error('保存专心模式进度失败:', error));
+  }, [focusState, project]);
+
   // 计时器管理
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
@@ -128,58 +158,103 @@ export default function FocusMode() {
     };
   }, [focusState.isPaused]);
 
-  // 从localStorage加载数据
+  // 从项目库或旧localStorage加载数据
   useEffect(() => {
-    const savedPixelData = localStorage.getItem('focusMode_pixelData');
-    const savedGridDimensions = localStorage.getItem('focusMode_gridDimensions');
-    const savedColorCounts = localStorage.getItem('focusMode_colorCounts');
-    const savedColorSystem = localStorage.getItem('focusMode_selectedColorSystem');
+    const loadFocusData = async () => {
+      const projectId = new URLSearchParams(window.location.search).get('project');
+      if (projectId) {
+        const loadedProject = await loadProject(projectId);
+        if (!loadedProject) {
+          window.location.href = getHomePath();
+          return;
+        }
 
-    if (savedPixelData && savedGridDimensions && savedColorCounts) {
-      try {
-        const pixelData = JSON.parse(savedPixelData);
-        const dimensions = JSON.parse(savedGridDimensions);
-        const colorCounts = JSON.parse(savedColorCounts);
+        setProject(loadedProject);
+        setMappedPixelData(loadedProject.mappedPixelData);
+        setGridDimensions(loadedProject.gridDimensions);
 
-        setMappedPixelData(pixelData);
-        setGridDimensions(dimensions);
-        
-        // 设置色号系统 - 已移除未使用的状态
-
-        // 计算颜色进度
-        const colors = Object.entries(colorCounts).map(([, colorData]) => {
-          const data = colorData as { color: string; count: number };
-          // 通过hex值获取对应色号系统的色号
-          const displayKey = getColorKeyByHex(data.color, savedColorSystem as ColorSystem || 'MARD');
+        const colors = Object.entries(loadedProject.colorCounts).map(([, colorData]) => {
+          const displayKey = getColorKeyByHex(colorData.color, loadedProject.selectedColorSystem);
+          const savedProgress = loadedProject.focusProgress?.colorProgress[colorData.color];
           return {
-            color: data.color,
-            name: displayKey, // 使用色号系统的色号作为名称
-            total: data.count,
-            completed: 0
+            color: colorData.color,
+            name: displayKey,
+            total: colorData.count,
+            completed: savedProgress?.completed ?? 0
           };
         });
         setAvailableColors(colors);
 
-        // 设置初始当前颜色
-        if (colors.length > 0) {
-          setFocusState(prev => ({
-            ...prev,
-            currentColor: colors[0].color,
-            colorProgress: colors.reduce((acc, color) => ({
-              ...acc,
-              [color.color]: { completed: 0, total: color.total }
-            }), {})
-          }));
+        const savedFocus = loadedProject.focusProgress;
+        setFocusState(prev => ({
+          ...prev,
+          currentColor: savedFocus?.currentColor || colors[0]?.color || '',
+          selectedCell: savedFocus?.selectedCell ?? null,
+          canvasScale: savedFocus?.canvasScale ?? prev.canvasScale,
+          canvasOffset: savedFocus?.canvasOffset ?? prev.canvasOffset,
+          completedCells: new Set(savedFocus?.completedCells ?? []),
+          colorProgress: savedFocus?.colorProgress ?? colors.reduce((acc, color) => ({
+            ...acc,
+            [color.color]: { completed: color.completed, total: color.total }
+          }), {}),
+          guidanceMode: savedFocus?.guidanceMode ?? prev.guidanceMode,
+          startTime: savedFocus?.timer.startTime ?? Date.now(),
+          totalElapsedTime: savedFocus?.timer.totalElapsedTime ?? 0,
+          lastResumeTime: Date.now(),
+          isPaused: savedFocus?.timer.isPaused ?? false
+        }));
+        return;
+      }
+
+      const savedPixelData = localStorage.getItem('focusMode_pixelData');
+      const savedGridDimensions = localStorage.getItem('focusMode_gridDimensions');
+      const savedColorCounts = localStorage.getItem('focusMode_colorCounts');
+      const savedColorSystem = localStorage.getItem('focusMode_selectedColorSystem');
+
+      if (savedPixelData && savedGridDimensions && savedColorCounts) {
+        try {
+          const pixelData = JSON.parse(savedPixelData);
+          const dimensions = JSON.parse(savedGridDimensions);
+          const colorCounts = JSON.parse(savedColorCounts);
+
+          setMappedPixelData(pixelData);
+          setGridDimensions(dimensions);
+
+          const colors = Object.entries(colorCounts).map(([, colorData]) => {
+            const data = colorData as { color: string; count: number };
+            const displayKey = getColorKeyByHex(data.color, savedColorSystem as ColorSystem || 'MARD');
+            return {
+              color: data.color,
+              name: displayKey,
+              total: data.count,
+              completed: 0
+            };
+          });
+          setAvailableColors(colors);
+
+          if (colors.length > 0) {
+            setFocusState(prev => ({
+              ...prev,
+              currentColor: colors[0].color,
+              colorProgress: colors.reduce((acc, color) => ({
+                ...acc,
+                [color.color]: { completed: 0, total: color.total }
+              }), {})
+            }));
+          }
+        } catch (error) {
+          console.error('Failed to load focus mode data:', error);
+          window.location.href = getHomePath();
         }
-      } catch (error) {
-        console.error('Failed to load focus mode data:', error);
-        // 重定向到主页面
+      } else {
         window.location.href = getHomePath();
       }
-    } else {
-      // 没有数据，重定向到主页面
+    };
+
+    loadFocusData().catch(error => {
+      console.error('加载专心模式项目失败:', error);
       window.location.href = getHomePath();
-    }
+    });
   }, [getHomePath]);
 
   // 计算推荐的下一个区域
@@ -475,8 +550,9 @@ export default function FocusMode() {
   }
 
   const currentColorInfo = availableColors.find(c => c.color === focusState.currentColor);
-  const progressPercentage = currentColorInfo ? 
+  const progressPercentage = currentColorInfo ?
     Math.round((currentColorInfo.completed / currentColorInfo.total) * 100) : 0;
+  const totalEstimate = project?.summary.difficulty ?? estimateDifficulty(mappedPixelData);
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
@@ -504,10 +580,11 @@ export default function FocusMode() {
       </header>
 
       {/* 当前颜色状态栏 */}
-      <ColorStatusBar 
+      <ColorStatusBar
         currentColor={focusState.currentColor}
         colorInfo={currentColorInfo}
         progressPercentage={progressPercentage}
+        totalEstimatedMinutes={totalEstimate?.estimatedMinutes}
       />
 
       {/* 主画布区域 */}

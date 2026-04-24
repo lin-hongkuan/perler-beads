@@ -18,6 +18,7 @@ interface PixelatedPreviewCanvasProps {
   ) => void;
   highlightColorKey?: string | null;
   onHighlightComplete?: () => void;
+  isCanvasLocked?: boolean;
 }
 
 // 绘制像素化画布的函数
@@ -104,10 +105,15 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
   onInteraction,
   highlightColorKey,
   onHighlightComplete,
+  isCanvasLocked = false,
 }) => {
   const [darkModeState, setDarkModeState] = useState<boolean | null>(null);
   const touchStartPosRef = useRef<{ x: number; y: number; pageX: number; pageY: number } | null>(null);
   const touchMovedRef = useRef<boolean>(false);
+  const lastPaintCellRef = useRef<string | null>(null);
+  const lastPinchDistanceRef = useRef<number | null>(null);
+  const lastPinchCenterRef = useRef<{ x: number; y: number } | null>(null);
+  const [mobileView, setMobileView] = useState({ scale: 1, x: 0, y: 0 });
   const [isHighlighting, setIsHighlighting] = useState(false);
 
   // Effect to detect dark mode changes and update state
@@ -142,6 +148,50 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
       drawPixelatedCanvas(mappedPixelData, canvasRef.current, gridDimensions, highlightColorKey, isHighlighting);
     }
   }, [mappedPixelData, gridDimensions, canvasRef, darkModeState, highlightColorKey, isHighlighting]); // Add darkModeState dependency
+
+  useEffect(() => {
+    if (!isCanvasLocked || !isManualColoringMode) return;
+    const handleWindowTouchMove = (event: globalThis.TouchEvent) => {
+      if (event.touches.length === 2) {
+        const touch1 = event.touches[0];
+        const touch2 = event.touches[1];
+        const dx = touch1.clientX - touch2.clientX;
+        const dy = touch1.clientY - touch2.clientY;
+        const currentDistance = Math.sqrt(dx * dx + dy * dy);
+        const center = {
+          x: (touch1.clientX + touch2.clientX) / 2,
+          y: (touch1.clientY + touch2.clientY) / 2
+        };
+
+        if (lastPinchDistanceRef.current !== null) {
+          const ratio = currentDistance / lastPinchDistanceRef.current;
+          setMobileView(prev => ({
+            scale: Math.max(0.5, Math.min(3, prev.scale * ratio)),
+            x: prev.x + (center.x - (lastPinchCenterRef.current?.x ?? center.x)),
+            y: prev.y + (center.y - (lastPinchCenterRef.current?.y ?? center.y))
+          }));
+        }
+
+        lastPinchDistanceRef.current = currentDistance;
+        lastPinchCenterRef.current = center;
+      }
+    };
+
+    const handleWindowTouchEnd = () => {
+      lastPinchDistanceRef.current = null;
+      lastPinchCenterRef.current = null;
+    };
+
+    window.addEventListener('touchmove', handleWindowTouchMove, { passive: false });
+    window.addEventListener('touchend', handleWindowTouchEnd);
+    window.addEventListener('touchcancel', handleWindowTouchEnd);
+
+    return () => {
+      window.removeEventListener('touchmove', handleWindowTouchMove);
+      window.removeEventListener('touchend', handleWindowTouchEnd);
+      window.removeEventListener('touchcancel', handleWindowTouchEnd);
+    };
+  }, [isCanvasLocked, isManualColoringMode]);
 
   // 处理高亮效果
   useEffect(() => {
@@ -184,8 +234,27 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
   // --- 触摸事件处理 ---
   // 用于检测触摸移动的参考
   const handleTouchStart = (event: TouchEvent<HTMLCanvasElement>) => {
+    if (event.touches.length === 2 && isCanvasLocked && isManualColoringMode) {
+      const touch1 = event.touches[0];
+      const touch2 = event.touches[1];
+      const dx = touch1.clientX - touch2.clientX;
+      const dy = touch1.clientY - touch2.clientY;
+      lastPinchDistanceRef.current = Math.sqrt(dx * dx + dy * dy);
+      lastPinchCenterRef.current = {
+        x: (touch1.clientX + touch2.clientX) / 2,
+        y: (touch1.clientY + touch2.clientY) / 2
+      };
+      return;
+    }
+
     const touch = event.touches[0];
     if (!touch) return;
+
+    if (isCanvasLocked && isManualColoringMode) {
+      event.preventDefault();
+      lastPaintCellRef.current = null;
+      onInteraction(touch.clientX, touch.clientY, touch.pageX, touch.pageY, true);
+    }
 
     // 记录起始位置并重置移动标志
     touchStartPosRef.current = {
@@ -205,12 +274,25 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
   
   // 触摸移动时检测是否需要隐藏提示
   const handleTouchMove = (event: TouchEvent<HTMLCanvasElement>) => {
+    if (event.touches.length === 2 && isCanvasLocked && isManualColoringMode) {
+      event.preventDefault();
+      return;
+    }
+
     const touch = event.touches[0];
     if (!touch || !touchStartPosRef.current) return;
-    
+
     const dx = Math.abs(touch.clientX - touchStartPosRef.current.x);
     const dy = Math.abs(touch.clientY - touchStartPosRef.current.y);
-    
+
+    if (isCanvasLocked && isManualColoringMode) {
+      event.preventDefault();
+      if (dx > 4 || dy > 4) {
+        onInteraction(touch.clientX, touch.clientY, touch.pageX, touch.pageY, true);
+      }
+      return;
+    }
+
     // 如果移动超过阈值，则标记为已移动，并隐藏tooltip
     // 增加一个稍大的阈值，以更好地区分点击和微小的手指抖动/滑动意图
     if (!touchMovedRef.current && (dx > 10 || dy > 10)) {
@@ -237,23 +319,31 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
   };
 
   return (
-    <canvas
-      ref={canvasRef}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      onClick={handleClick}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-      onTouchCancel={handleTouchEnd} // 添加 onTouchCancel 以处理触摸中断的情况
-      className={`border border-gray-300 dark:border-gray-600 max-w-full h-auto rounded block ${
-        isManualColoringMode ? 'cursor-pointer' : 'cursor-grab' // 改为 grab 光标提示可以拖动
-      }`}
+    <div
+      className="max-w-full overflow-hidden rounded"
       style={{
-        imageRendering: 'pixelated',
-        // touchAction: 'none' // 移除此行以允许页面滚动和缩放
+        transform: isCanvasLocked && isManualColoringMode ? `translate(${mobileView.x}px, ${mobileView.y}px) scale(${mobileView.scale})` : undefined,
+        transformOrigin: 'center center'
       }}
-    />
+    >
+      <canvas
+        ref={canvasRef}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        onClick={handleClick}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd} // 添加 onTouchCancel 以处理触摸中断的情况
+        className={`border border-gray-300 dark:border-gray-600 max-w-full h-auto rounded block ${
+          isManualColoringMode ? 'cursor-pointer' : 'cursor-grab' // 改为 grab 光标提示可以拖动
+        }`}
+        style={{
+          imageRendering: 'pixelated',
+          touchAction: isCanvasLocked && isManualColoringMode ? 'none' : 'auto'
+        }}
+      />
+    </div>
   );
 };
 

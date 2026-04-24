@@ -9,12 +9,14 @@ interface ColorStatusBarProps {
     completed: number;
   };
   progressPercentage: number;
+  totalEstimatedMinutes?: number;
 }
 
 const ColorStatusBar: React.FC<ColorStatusBarProps> = ({
   currentColor,
   colorInfo,
-  progressPercentage
+  progressPercentage,
+  totalEstimatedMinutes
 }) => {
   if (!colorInfo) {
     return (
@@ -24,7 +26,7 @@ const ColorStatusBar: React.FC<ColorStatusBarProps> = ({
     );
   }
 
-  const estimatedTime = Math.ceil((colorInfo.total - colorInfo.completed) * 0.1); // 假设每个格子0.5分钟
+  const estimatedTime = totalEstimatedMinutes ?? Math.ceil((colorInfo.total - colorInfo.completed) * 0.1);
 
   return (
     <div className="h-12 bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between">
