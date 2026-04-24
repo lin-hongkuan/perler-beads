@@ -1,4 +1,4 @@
-11import { MappedPixel } from '../utils/pixelation';
+import { MappedPixel } from '../utils/pixelation';
 import { ColorSystem } from '../utils/colorSystemUtils';
 import { PaletteSelections } from '../utils/localStorageUtils';
 import { DifficultyEstimate } from './estimation';

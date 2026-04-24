@@ -1,0 +1,22 @@
+{
+  "taskId": "019dbf4e-f9f6-76ed-86fc-3f98a835379d",
+  "todos": [
+    {
+      "id": "fb61fb34bd8c88109e053a9bc98d9f75",
+      "content": "盘点当前首页、专注模式、PWA 与组件结构",
+      "status": "completed"
+    },
+    {
+      "id": "33896d9d04a38fa01b76f79b20118b3f",
+      "content": "输出网站下一阶段优化建议清单",
+      "status": "completed"
+    },
+    {
+      "id": "58f247332759172a81e55bc07cd54a3c",
+      "content": "如用户认可，沉淀为 .tocodex/plans/ 后续优化路线图",
+      "status": "completed"
+    }
+  ],
+  "lastUpdated": 1777035206939,
+  "status": "active"
+}

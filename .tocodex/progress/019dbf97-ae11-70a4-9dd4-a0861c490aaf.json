@@ -1,0 +1,47 @@
+{
+  "taskId": "019dbf97-ae11-70a4-9dd4-a0861c490aaf",
+  "todos": [
+    {
+      "id": "a1b85ac14ff75413e5376d74554f2a3a",
+      "content": "了解用户想要的整体风格方向",
+      "status": "completed"
+    },
+    {
+      "id": "24bf969c97e76978f9866849b59f0901",
+      "content": "检查首页与核心界面的现有视觉实现",
+      "status": "completed"
+    },
+    {
+      "id": "71c6904e6cf1c35f44dd90cd34b74648",
+      "content": "输出一版完整的前端升级方案",
+      "status": "completed"
+    },
+    {
+      "id": "eb64d6b86e5e3ad618c7243954a4e1d0",
+      "content": "将方案保存到 `.tocodex/plans/` 目录",
+      "status": "completed"
+    },
+    {
+      "id": "6cc7abbfecc134678540c76edc7838b6",
+      "content": "邀请用户确认或调整方案",
+      "status": "completed"
+    },
+    {
+      "id": "afd12723b141fbb2483dd578b1c96c3e",
+      "content": "细化成可执行改造清单并更新计划文件",
+      "status": "completed"
+    },
+    {
+      "id": "51c88e125dcc1b01f44185e912cc092c",
+      "content": "生成简洁优雅风格参考小网页",
+      "status": "completed"
+    },
+    {
+      "id": "bcd93d6ada54cb8118b630d9d12570ba",
+      "content": "请求切换到 `code` 模式实施方案",
+      "status": "pending"
+    }
+  ],
+  "lastUpdated": 1777037040268,
+  "status": "active"
+}

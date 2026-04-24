@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>婷婷的拼豆工坊 - 简洁优雅风格参考</title>
+  <style>
+    :root {
+      --bg: #fafaf9;
+      --surface: #ffffff;
+      --surface-soft: #fcf7f8;
+      --brand: #d4809a;
+      --brand-soft: #f7edf0;
+      --text: #2d2426;
+      --text-secondary: #7d6d72;
+      --text-muted: #b8abaf;
+      --border: #ede5e7;
+      --line: #f0eaea;
+      --shadow-card: 0 1px 3px rgba(45, 36, 38, 0.06), 0 4px 16px rgba(45, 36, 38, 0.04);
+      --shadow-float: 0 8px 40px rgba(45, 36, 38, 0.12);
+      --radius-xl: 20px;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --radius-sm: 8px;
+      --max-width: 1120px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(180deg, #fcfbfb 0%, var(--bg) 100%);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .page {
+      width: min(var(--max-width), calc(100% - 48px));
+      margin: 0 auto;
+      padding: 32px 0 72px;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 0 28px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 14px;
+      color: var(--text-secondary);
+      letter-spacing: 0.04em;
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-card);
+      color: var(--brand);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 24px;
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .nav-links span {
+      cursor: default;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.2fr 0.85fr;
+      gap: 28px;
+      align-items: stretch;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-card);
+    }
+
+    .hero-copy {
+      padding: 52px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: var(--brand-soft);
+      color: var(--brand);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 22px 0 14px;
+      font-size: 48px;
+      line-height: 1.15;
+      font-weight: 300;
+      letter-spacing: -0.03em;
+    }
+
+    .hero-copy p {
+      margin: 0;
+      max-width: 620px;
+      color: var(--text-secondary);
+      font-size: 15px;
+      line-height: 1.9;
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .button {
+      height: 42px;
+      padding: 0 18px;
+      border-radius: 10px;
+      font-size: 14px;
+      border: 1px solid transparent;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+    }
+
+    .button.primary {
+      background: var(--text);
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(45, 36, 38, 0.12);
+    }
+
+    .button.secondary {
+      background: var(--surface);
+      color: var(--text);
+      border-color: var(--border);
+    }
+
+    .hero-panel {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .panel-preview {
+      border-radius: 16px;
+      background: linear-gradient(180deg, #fff 0%, #faf7f8 100%);
+      border: 1px solid var(--line);
+      padding: 18px;
+    }
+
+    .mini-grid {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 6px;
+      margin-top: 14px;
+    }
+
+    .mini-grid span {
+      aspect-ratio: 1 / 1;
+      border-radius: 6px;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 28px;
+    }
+
+    .summary .card {
+      padding: 22px;
+    }
+
+    .label {
+      font-size: 12px;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .value {
+      margin-top: 10px;
+      font-size: 28px;
+      font-weight: 400;
+      letter-spacing: -0.03em;
+    }
+
+    .desc {
+      margin-top: 8px;
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--text-secondary);
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 24px;
+      margin-top: 28px;
+    }
+
+    .workspace-main,
+    .workspace-side {
+      padding: 26px;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .section-title h2 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+    }
+
+    .section-title span {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .canvas-shell {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: linear-gradient(180deg, #fff 0%, #fbf8f9 100%);
+      padding: 18px;
+    }
+
+    .canvas-grid {
+      display: grid;
+      grid-template-columns: repeat(16, 1fr);
+      gap: 4px;
+    }
+
+    .canvas-grid span {
+      aspect-ratio: 1 / 1;
+      border-radius: 4px;
+      background: #f6edef;
+      border: 1px solid rgba(212, 128, 154, 0.08);
+    }
+
+    .list {
+      display: grid;
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .list-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--surface-soft);
+    }
+
+    .list-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .swatch {
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(0, 0, 0, 0.05);
+    }
+
+    .list-title {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .list-subtitle {
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .foot-note {
+      margin-top: 28px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 13px;
+      line-height: 1.8;
+    }
+
+    @media (max-width: 960px) {
+      .hero,
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .summary {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-copy,
+      .workspace-main,
+      .workspace-side {
+        padding: 24px;
+      }
+
+      h1 {
+        font-size: 36px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="nav">
+      <div class="brand">
+        <div class="brand-mark">TT</div>
+        <span>婷婷的拼豆工坊</span>
+      </div>
+      <div class="nav-links">
+        <span>作品</span>
+        <span>图纸</span>
+        <span>记录</span>
+      </div>
+    </div>
+
+    <section class="hero">
+      <div class="card hero-copy">
+        <div class="eyebrow">Elegant Reference</div>
+        <h1>把喜欢的照片，慢慢整理成一张安静好看的拼豆图纸。</h1>
+        <p>
+          这一版不强调花哨装饰，而是用更克制的颜色、更干净的卡片、更舒服的留白，
+          把整个网站做成一个简洁优雅、长期看也不过时的小站。
+        </p>
+        <div class="actions">
+          <div class="button primary">开始查看风格</div>
+          <div class="button secondary">保留这个方向</div>
+        </div>
+      </div>
+
+      <div class="card hero-panel">
+        <div class="section-title">
+          <h2>风格特征</h2>
+          <span>低饱和 · 极简 · 留白</span>
+        </div>
+        <div class="panel-preview">
+          <div class="label">参考拼豆预览</div>
+          <div class="mini-grid">
+            <span style="background:#eac7d1"></span>
+            <span style="background:#d9b8bf"></span>
+            <span style="background:#f3d8de"></span>
+            <span style="background:#d8c0c6"></span>
+            <span style="background:#ead0d6"></span>
+            <span style="background:#f5e7ea"></span>
+            <span style="background:#d69ab0"></span>
+            <span style="background:#e8cdd4"></span>
+            <span style="background:#d5b3ba"></span>
+            <span style="background:#f2dde2"></span>
+            <span style="background:#e1c2ca"></span>
+            <span style="background:#cf9fb0"></span>
+            <span style="background:#f4e7eb"></span>
+            <span style="background:#ddbcc4"></span>
+            <span style="background:#c992a3"></span>
+            <span style="background:#efd8de"></span>
+          </div>
+        </div>
+        <div class="list">
+          <div class="list-item">
+            <div>
+              <div class="list-title">暖白底色</div>
+              <div class="list-subtitle">不用纯白，减少生硬感</div>
+            </div>
+            <div class="label">#FAFAF9</div>
+          </div>
+          <div class="list-item">
+            <div>
+              <div class="list-title">低饱和主色</div>
+              <div class="list-subtitle">只保留一个柔和玫瑰色作为品牌色</div>
+            </div>
+            <div class="label">#D4809A</div>
+          </div>
+          <div class="list-item">
+            <div>
+              <div class="list-title">细字重标题</div>
+              <div class="list-subtitle">少一点用力感，多一点高级感</div>
+            </div>
+            <div class="label">300–500</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="summary">
+      <div class="card">
+        <div class="label">视觉气质</div>
+        <div class="value">简洁</div>
+        <div class="desc">依靠留白、描边和字体层级，而不是复杂背景和多彩装饰。</div>
+      </div>
+      <div class="card">
+        <div class="label">品牌情绪</div>
+        <div class="value">优雅</div>
+        <div class="desc">既保留温柔感，又不显得太甜太幼，适合长期使用。</div>
+      </div>
+      <div class="card">
+        <div class="label">站点定位</div>
+        <div class="value">私人作品站</div>
+        <div class="desc">不像工具后台，更像一个认真整理作品与图纸的小空间。</div>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <div class="card workspace-main">
+        <div class="section-title">
+          <h2>首页工作台参考</h2>
+          <span>纯白卡片 + 微妙层次</span>
+        </div>
+        <div class="canvas-shell">
+          <div class="canvas-grid">
+            <span style="background:#f4e7eb"></span><span></span><span></span><span style="background:#ebd3da"></span><span></span><span></span><span style="background:#d7a4b4"></span><span></span><span></span><span style="background:#f2dde2"></span><span></span><span></span><span style="background:#e4c4cd"></span><span></span><span></span><span style="background:#edd6dc"></span>
+            <span></span><span style="background:#e4c4cd"></span><span></span><span></span><span style="background:#f4e7eb"></span><span></span><span></span><span style="background:#cf9fb0"></span><span></span><span></span><span style="background:#ebd3da"></span><span></span><span></span><span style="background:#d9b8bf"></span><span></span><span></span>
+            <span></span><span></span><span style="background:#efd8de"></span><span></span><span></span><span style="background:#d69ab0"></span><span></span><span></span><span style="background:#f4e7eb"></span><span></span><span></span><span style="background:#e1c2ca"></span><span></span><span></span><span style="background:#f3d8de"></span><span></span>
+            <span style="background:#d9b8bf"></span><span></span><span></span><span style="background:#e8cdd4"></span><span></span><span></span><span style="background:#f4e7eb"></span><span></span><span></span><span style="background:#cf9fb0"></span><span></span><span></span><span style="background:#efd8de"></span><span></span><span></span><span style="background:#d8c0c6"></span>
+            <span></span><span></span><span style="background:#f2dde2"></span><span></span><span></span><span style="background:#ddbcc4"></span><span></span><span></span><span style="background:#eac7d1"></span><span></span><span></span><span style="background:#f5e7ea"></span><span></span><span></span><span style="background:#d69ab0"></span><span></span>
+            <span></span><span style="background:#e8cdd4"></span><span></span><span></span><span style="background:#efd8de"></span><span></span><span></span><span style="background:#d7a4b4"></span><span></span><span></span><span style="background:#f4e7eb"></span><span></span><span></span><span style="background:#e4c4cd"></span><span></span><span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card workspace-side">
+        <div class="section-title">
+          <h2>色号统计参考</h2>
+          <span>温柔不喧闹</span>
+        </div>
+        <div class="list">
+          <div class="list-item">
+            <div class="list-left">
+              <div class="swatch" style="background:#d69ab0"></div>
+              <div>
+                <div class="list-title">A12 Soft Rose</div>
+                <div class="list-subtitle">182 颗</div>
+              </div>
+            </div>
+            <div class="label">主色</div>
+          </div>
+          <div class="list-item">
+            <div class="list-left">
+              <div class="swatch" style="background:#efd8de"></div>
+              <div>
+                <div class="list-title">B08 Mist Pink</div>
+                <div class="list-subtitle">124 颗</div>
+              </div>
+            </div>
+            <div class="label">辅色</div>
+          </div>
+          <div class="list-item">
+            <div class="list-left">
+              <div class="swatch" style="background:#f5e7ea"></div>
+              <div>
+                <div class="list-title">C03 Cream White</div>
+                <div class="list-subtitle">96 颗</div>
+              </div>
+            </div>
+            <div class="label">底色</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="foot-note">
+      这是一个风格参考页，不是最终实现稿。重点是确认这套审美是否符合你要的
+      简洁、优雅、不过度装饰的方向。
+    </div>
+  </div>
+</body>
+</html>

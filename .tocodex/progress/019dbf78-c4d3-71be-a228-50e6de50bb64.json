@@ -1,0 +1,22 @@
+{
+  "taskId": "019dbf78-c4d3-71be-a228-50e6de50bb64",
+  "todos": [
+    {
+      "id": "e471c72914f6584d6e88457f40a0504d",
+      "content": "分析 [`src/app/page.tsx`](src/app/page.tsx:1108) controls panel JSX 及相关类型",
+      "status": "completed"
+    },
+    {
+      "id": "77da2afce103a1510e96f77abcea2fd2",
+      "content": "创建 [`src/components/home/HomeControlsPanel.tsx`](src/components/home/HomeControlsPanel.tsx:1) 并定义完整 props interface",
+      "status": "completed"
+    },
+    {
+      "id": "367152bcbfaee1b1120bbe1cdb81d1d2",
+      "content": "校验新组件内容与导入是否符合要求",
+      "status": "completed"
+    }
+  ],
+  "lastUpdated": 1777033942977,
+  "status": "active"
+}

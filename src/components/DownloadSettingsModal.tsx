@@ -16,7 +16,8 @@ interface DownloadSettingsModalProps {
   onClose: () => void;
   options: GridDownloadOptions;
   onOptionsChange: (options: GridDownloadOptions) => void;
-  onDownload: (opts?: GridDownloadOptions) => void;
+  onDownload: (opts?: GridDownloadOptions) => void | Promise<void>;
+  isLoading?: boolean;
 }
 
 const DownloadSettingsModal: React.FC<DownloadSettingsModalProps> = ({
@@ -24,7 +25,8 @@ const DownloadSettingsModal: React.FC<DownloadSettingsModalProps> = ({
   onClose,
   options,
   onOptionsChange,
-  onDownload
+  onDownload,
+  isLoading = false,
 }) => {
   // 将useState移到顶层，不管isOpen是什么值
   const [tempOptions, setTempOptions] = useState<GridDownloadOptions>({...options});
@@ -209,15 +211,20 @@ const DownloadSettingsModal: React.FC<DownloadSettingsModalProps> = ({
           <div className="flex justify-end mt-6 space-x-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg transition-colors"
+              disabled={isLoading}
+              className="px-4 py-2 bg-gray-200 hover:bg-gray-300 disabled:opacity-60 disabled:cursor-not-allowed dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg transition-colors"
             >
               取消
             </button>
             <button
               onClick={handleSave}
-              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+              disabled={isLoading}
+              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-400 disabled:cursor-wait text-white rounded-lg transition-colors inline-flex items-center gap-2"
             >
-              下载图纸
+              {isLoading && (
+                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+              )}
+              {isLoading ? '正在生成...' : '下载图纸'}
             </button>
           </div>
         </div>
